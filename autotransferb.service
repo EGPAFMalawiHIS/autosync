@@ -1,0 +1,21 @@
+[Unit]
+Description = EGPAF Auto Data Transfer Service
+After       = network.target
+
+[Service]
+WorkingDirectory=/home/user/autotransfer
+ExecStart=/usr/bin/python3 /home/user/autotransfer/sms_send.py
+ExecStop=/bin/kill -INT $MAINPID
+ExecReload=/bin/kill -TERM $MAINPID
+
+# In case if it gets stopped, restart it immediately
+Restart     = always
+
+Type        = simple
+
+
+[Install]
+# multi-user.target corresponds to run level 3
+# roughtly meaning wanted by system start
+WantedBy    = multi-user.target
+
