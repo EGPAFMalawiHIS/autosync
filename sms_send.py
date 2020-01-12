@@ -163,16 +163,16 @@ def execute(myquota,site):
 	reportStartDate = None
 	key =  b'qm5dmZsVgNN6ZyyOBrBrbN5NYrhU7d1PLOue-ZDQZEc='
 	if myquota == 1:
-		quota = '-04-30'
+		quota = '-03-31'
 		Result = getQouta(code,reportStartDate,quota,now.year,site)
 	elif myquota == 2:
-		quota = '-07-31'
+		quota = '-06-30'
 		Result = getQouta(code,reportStartDate,quota,now.year,site)
 	elif myquota == 3:
-		quota = '-10-31'
+		quota = '-09-30'
 		Result = getQouta(code,reportStartDate,quota,now.year,site)
 	elif myquota == 4:
-		quota = '-01-31'
+		quota = '-12-31'
 		Result = getQouta(code,reportStartDate,quota,int(now.year) +1,site)
 	#print(Result)
 	#print('KEY:',generateEncryptionKey())
