@@ -1,2 +1,4 @@
 requests
 cryptography
+pylint
+rope
