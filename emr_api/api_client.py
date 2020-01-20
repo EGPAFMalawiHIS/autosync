@@ -66,7 +66,7 @@ class ApiClient:
             return run_request()
         except exceptions.AuthenticationError:
             self.login()
-            return run_request
+            return run_request()
 
     def extract_data_from_response(self, response):
         '''Extract data from a requests response.
