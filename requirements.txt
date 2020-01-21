@@ -2,3 +2,4 @@ requests
 cryptography
 pylint
 rope
+python-dotenv

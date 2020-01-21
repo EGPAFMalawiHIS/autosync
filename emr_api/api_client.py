@@ -14,7 +14,7 @@ class ApiClient:
     GET /users).
 
     Example:
-        >>> config = {'emr_api_username': 'foobar', 'emr_api_password': 'password'}
+        >>> config = {'username': 'foobar', 'password': 'password'}
         >>> api_client = ApiClient(config)
         >>> api_client.get('/patients')
         [patient, another patient, ...]
@@ -33,10 +33,10 @@ class ApiClient:
         return self.execute_api_request(request)
 
     def expand_url(self, url):
-        protocol = self.config.get('emr_api_protocol', 'http') 
-        host = self.config['emr_api_host']
-        port = self.config['emr_api_port']
-        version = self.config.get('emr_api_version', 'v1') 
+        protocol = self.config.get('protocol', 'http') 
+        host = self.config['host']
+        port = self.config['port']
+        version = self.config.get('version', 'v1') 
 
         return f'{protocol}://{host}:{port}/api/{version}/{url}'
 
@@ -48,8 +48,8 @@ class ApiClient:
         return ApiClient.authorization_key
 
     def login(self):
-        username = self.config['emr_api_username']
-        password = self.config['emr_api_password']
+        username = self.config['username']
+        password = self.config['password']
 
         LOGGER.debug(f'Attempting to login into EMR-API as {username}')
         response = requests.post(self.expand_url('auth/login'),
