@@ -89,6 +89,6 @@ class ApiClient:
             LOGGER.error(f'Authentication failed: {response.body}')
             raise exceptions.AuthenticationError('EMR API request failed')
         else:
-            LOGGER.error(f'EMR API request failed: {response.status} - {response.body}')
+            LOGGER.error(f'EMR API request failed: {response.status_code} - {response.text}')
             raise exceptions.ApiError('EMR API request failed')
  

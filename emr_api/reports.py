@@ -5,6 +5,8 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
+HIV_PROGRAM_ID = 1  # Program ID for HIV in EMR-API
+
 def get_quarter_dates(quarter, year=None):
     '''Returns the start_date and end_date of a quarter for a given year
     or the current year.'''
@@ -34,16 +36,49 @@ class CohortReport:
                                                                   start_date=start_date,
                                                                   end_date=end_date)
 
-
 class MohDisaggregatedReport:
     name = 'MOH Disaggregated Report'
+    AGE_GROUPS = [
+        '50 plus years',
+        '45-49',
+        '40-44',
+        '35-39',
+        '30-34',
+        '25-29',
+        '20-24',
+        '18-19',
+        '15-17',
+        '10-14',
+        '5-9',
+        '2-4',
+        '12-23 months',
+        '6-11 months',
+        '0-5 months',
+        'Pregnant',
+        'Breastfeeding',
+    ]
 
     @staticmethod
     def get(config, quarter, year):
         '''Retrieve quarterly MOH disaggregated cohort report for a given year.'''
+        import datetime
+
+        date = str(datetime.datetime.today())
+
         LOGGER.debug(f'Retrieving MOH disaggregated report for Q{quarter}-{year}')
-        start_date, end_date = get_quarter_dates(quarter, year)
-        return ApiClient(config).get('cohort_disaggregated', start_date=start_date, end_date=end_date)
+
+        report = []
+        for age_group in MohDisaggregatedReport.AGE_GROUPS:
+            LOGGER.debug(f'Retrieving indicator {age_group}...')
+            indicator = ApiClient(config).get('cohort_disaggregated', quarter=f'Q{quarter}-{year}',
+                                                                      age_group=age_group,
+                                                                      rebuild_outcome=False,
+                                                                      initialize=True,
+                                                                      program_id=HIV_PROGRAM_ID,
+                                                                      date=date)
+            report.append(indicator)
+
+        return report
 
 
 class PepfarDisaggregatedReport:
@@ -65,5 +100,10 @@ if __name__ == '__main__':
               'emr_api_port': 3000,
               'emr_api_username': 'admin',
               'emr_api_password': 'test'}
-    report = CohortReport.get(config, 1, 2019)
-    print(report)
+
+    print('Cohort report...')
+    print(CohortReport.get(config, 1, 2019))
+    print('MohDisaggregated...')
+    print(MohDisaggregatedReport.get(config, 1, 2019))
+
+
