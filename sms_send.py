@@ -12,16 +12,16 @@ from cryptography.fernet import Fernet
 import json
 import socket
 import time
+import settings # enviroment variabless
 
 #set timezone
 os.environ['TZ'] = 'Africa/Blantyre'
 time.tzset()
 
-URL = 'http://localhost/api/v1/reports/age-disaggregates'
-SERVER = 'INPUT IP ADDRESS SHARED IN DOCUMENTATION HERE'
-#SERVER = 'localhost'
-PORT = 49160
-#PORT = 5000
+URL = os.getenv("URL")
+SERVER = os.getenv("SERVER")
+PORT = os.getenv("PORT")
+
 def getSite(filename):
 	site = {'SITECODE':None,'SITENAME':None,'DISTRICT':None}
 	with open(filename) as fp:
