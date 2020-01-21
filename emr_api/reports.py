@@ -32,9 +32,10 @@ class CohortReport:
         '''Retrieve quarterly cohort report for a given year.'''
         LOGGER.debug(f'Retrieving cohort report for Q{quarter}-{year}')
         start_date, end_date = get_quarter_dates(quarter, year)
-        return ApiClient(config).get('programs/1/reports/cohort', name=f'Q{quarter}-{year}',
-                                                                  start_date=start_date,
-                                                                  end_date=end_date)
+        uri = f'programs/{HIV_PROGRAM_ID}/reports/cohort'
+        return ApiClient(config).get(uri, name=f'Q{quarter}-{year}',
+                                          start_date=start_date,
+                                          end_date=end_date)
 
 class MohDisaggregatedReport:
     name = 'MOH Disaggregated Report'
@@ -63,9 +64,8 @@ class MohDisaggregatedReport:
         '''Retrieve quarterly MOH disaggregated cohort report for a given year.'''
         import datetime
 
-        date = str(datetime.datetime.today())
-
         LOGGER.debug(f'Retrieving MOH disaggregated report for Q{quarter}-{year}')
+        date = str(datetime.datetime.today())
 
         report = []
         for age_group in MohDisaggregatedReport.AGE_GROUPS:
@@ -76,6 +76,11 @@ class MohDisaggregatedReport:
                                                                       initialize=True,
                                                                       program_id=HIV_PROGRAM_ID,
                                                                       date=date)
+            if indicator is not None and not indicator:
+                # EMR-API returns some records that are completely blank in cases
+                # where there are not patients in the given age group.
+                indicator[age_group] = {}
+
             report.append(indicator)
 
         return report
@@ -103,6 +108,7 @@ if __name__ == '__main__':
 
     print('Cohort report...')
     print(CohortReport.get(config, 1, 2019))
+    print('-' * 80)
     print('MohDisaggregated...')
     print(MohDisaggregatedReport.get(config, 1, 2019))
 
