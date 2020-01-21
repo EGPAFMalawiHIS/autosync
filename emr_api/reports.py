@@ -99,17 +99,3 @@ def reports():
     '''Returns a list of all EMR API reports.'''
     return [CohortReport, MohDisaggregatedReport, PepfarDisaggregatedReport]
 
-
-if __name__ == '__main__':
-    config = {'emr_api_host': 'localhost',
-              'emr_api_port': 3000,
-              'emr_api_username': 'admin',
-              'emr_api_password': 'test'}
-
-    print('Cohort report...')
-    print(CohortReport.get(config, 1, 2019))
-    print('-' * 80)
-    print('MohDisaggregated...')
-    print(MohDisaggregatedReport.get(config, 1, 2019))
-
-
