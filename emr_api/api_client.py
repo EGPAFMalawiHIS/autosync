@@ -4,6 +4,7 @@ import logging
 import requests
 
 LOGGER = logging.getLogger(__name__)
+LOGGER.setLevel(logging.DEBUG)
 
 class ApiClient:
     '''An ApiClient for the EMR API.
@@ -23,15 +24,21 @@ class ApiClient:
     def __init__(self, config):
         self.config = config
 
-    def get(self, *url_parts, **url_params):
+    def get(self, url, **url_params):
         def request():
-            url = self.join_url_parts(url_params)
-            return requests.get(url, params=url_params, headers={'Authorization': self.get_authorization_key()})
+            expanded_url = self.expand_url(url)
+            LOGGER.debug(f'Performing GET {expanded_url}')
+            return requests.get(expanded_url, params=url_params, headers={'Authorization': self.get_authorization_key()})
 
         return self.execute_api_request(request)
 
-    def join_url_parts(self, url_parts):
-        return '/'.join((self.config['emr_api_url'], 'api/v1') + url_parts)
+    def expand_url(self, url):
+        protocol = self.config.get('emr_api_protocol', 'http') 
+        host = self.config['emr_api_host']
+        port = self.config['emr_api_port']
+        version = self.config.get('emr_api_version', 'v1') 
+
+        return f'{protocol}://{host}:{port}/api/{version}/{url}'
 
     def get_authorization_key(self):
         if ApiClient.authorization_key:
@@ -45,12 +52,12 @@ class ApiClient:
         password = self.config['emr_api_password']
 
         LOGGER.debug(f'Attempting to login into EMR-API as {username}')
-        response = requests.post(self.join_url_parts('auth/login'),
+        response = requests.post(self.expand_url('auth/login'),
                                  json={'username': username, 'password': password},
                                  headers={'Content-type': 'application/json'})
 
         data = self.extract_data_from_response(response)
-        ApiClient.authorization_key = data['token']
+        ApiClient.authorization_key = data['authorization']['token']
         LOGGER.debug(f"Successfully authenticated on EMR-API as {username} ")
 
     def execute_api_request(self, api_request_method):
@@ -74,12 +81,14 @@ class ApiClient:
         NOTE: This only extracts from a successful response, otherwise
         an error is raised.
         '''
-        if response.status == 401:
+        if response.status_code == 200 or response.status_code == 201:
+            return response.json()
+        elif response.status_code == 204:
+            return None # 204 is no content
+        elif response.status_code == 401:
             LOGGER.error(f'Authentication failed: {response.body}')
             raise exceptions.AuthenticationError('EMR API request failed')
-        elif response.status not in (200, 201, 204):
+        else:
             LOGGER.error(f'EMR API request failed: {response.status} - {response.body}')
             raise exceptions.ApiError('EMR API request failed')
-
-        return response.json()
  
