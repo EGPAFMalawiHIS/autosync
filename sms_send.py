@@ -21,6 +21,7 @@ time.tzset()
 URL = os.getenv("URL")
 SERVER = os.getenv("SERVER")
 PORT = os.getenv("PORT")
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
 
 def getSite(filename):
 	site = {'SITECODE':None,'SITENAME':None,'DISTRICT':None}
@@ -161,7 +162,7 @@ def execute(myquota,site):
 	now = datetime.datetime.now()
 	code = 1
 	reportStartDate = None
-	key =  b'qm5dmZsVgNN6ZyyOBrBrbN5NYrhU7d1PLOue-ZDQZEc='
+	key = bytes(ENCRYPTION_KEY, encoding='utf-8') # Key should be generated dynamically
 	if myquota == 1:
 		quota = '-03-31'
 		Result = getQouta(code,reportStartDate,quota,now.year,site)
