@@ -37,8 +37,11 @@ class CohortReport:
                                           start_date=start_date,
                                           end_date=end_date)
 
-class MohDisaggregatedReport:
-    name = 'MOH Disaggregated Report'
+
+class BaseDisaggregatedReport:
+    # TODO: Redo this as an ABC but that would entail refactoring all classes
+    # to be instantiatable.
+    name = None
     AGE_GROUPS = [
         '50 plus years',
         '45-49',
@@ -59,23 +62,17 @@ class MohDisaggregatedReport:
         'Breastfeeding',
     ]
 
-    @staticmethod
-    def get(config, quarter, year):
+    @classmethod
+    def get(cls, config, quarter, year):
         '''Retrieve quarterly MOH disaggregated cohort report for a given year.'''
         import datetime
 
         LOGGER.debug(f'Retrieving MOH disaggregated report for Q{quarter}-{year}')
-        date = str(datetime.datetime.today())
 
         report = []
-        for age_group in MohDisaggregatedReport.AGE_GROUPS:
+        for age_group in cls.AGE_GROUPS:
             LOGGER.debug(f'Retrieving indicator {age_group}...')
-            indicator = ApiClient(config).get('cohort_disaggregated', quarter=f'Q{quarter}-{year}',
-                                                                      age_group=age_group,
-                                                                      rebuild_outcome=False,
-                                                                      initialize=True,
-                                                                      program_id=HIV_PROGRAM_ID,
-                                                                      date=date)
+            indicator = cls.get_indicator(config, quarter, year, age_group) 
             if indicator is not None and not indicator:
                 # EMR-API returns some records that are completely blank in cases
                 # where there are not patients in the given age group.
@@ -85,15 +82,42 @@ class MohDisaggregatedReport:
 
         return report
 
+    @classmethod
+    def get_indicator(cls, config, quarter, year, age_group):
+        raise NotImplementedError(f'Method {cls}.get_indicator not implemented')
 
-class PepfarDisaggregatedReport:
+
+class MohDisaggregatedReport(BaseDisaggregatedReport):
+    name = 'MOH Disaggregated Report'
+
+    @classmethod
+    def get_indicator(cls, config, quarter, year, age_group):
+        date = str(datetime.date.today())
+        return ApiClient(config).get('cohort_disaggregated', quarter=f'Q{quarter}-{year}',
+                                                             age_group=age_group,
+                                                             rebuild_outcome=True,
+                                                             initialize=True,
+                                                             program_id=HIV_PROGRAM_ID,
+                                                             date=date)
+
+
+class PepfarDisaggregatedReport(BaseDisaggregatedReport):
     name = 'PEPFAR Disaggregated Report'
 
-    @staticmethod
-    def get(config, quarter, year):
+    @classmethod
+    def get_indicator(cls, config, quarter, year, age_group):
         '''Retrieve quarterly PEPFAR disaggregated cohort report for a given year.'''
         LOGGER.debug(f'Retrieving PEPFAR disaggregated cohort report for Q{quarter}-{year}')
-        return {}
+        date = str(datetime.date.today())
+        start_date, end_date = get_quarter_dates(quarter, year)
+        return ApiClient(config).get('cohort_disaggregated', quarter='pepfar',
+                                                             age_group=age_group,
+                                                             rebuild_outcome=True,
+                                                             initialize=True,
+                                                             program_id=HIV_PROGRAM_ID,
+                                                             start_date=start_date,
+                                                             end_date=end_date,
+                                                             date=date)
 
 def reports():
     '''Returns a list of all EMR API reports.'''
