@@ -12,6 +12,8 @@ from cryptography.fernet import Fernet
 import json
 import socket
 import time
+
+import emr_api.reports as emr_reports
 import settings # enviroment variabless
 
 #set timezone
@@ -153,16 +155,21 @@ def checkHost(ip, port,retry,delay):
 			print('retrying ....')
 	return ipup
 
+def getEmrHIVReports(site, quarter, year):
+	'''Returns a list of the primary HIV reports from the EMR.'''
+	parse_report = lambda report: {
+		'sitecode': site['SITECODE'],
+		'sitename': site['SITENAME'],
+		'report_generated_time': datetime.datetime.now().strftime(r'%Y-%m-%d %H:%M'),
+		'reportdata': report.get(settings.EMR_API, quarter, year)
+	}
 
+	return map(parse_report, emr_reports.reports())
 
-def execute(myquota,site):
-	# quotas
-	#myquota = 3
-	Result = ''
+def getEMastercardReports(site, myquota):
 	now = datetime.datetime.now()
 	code = 1
 	reportStartDate = None
-	key = bytes(ENCRYPTION_KEY, encoding='utf-8') # Key should be generated dynamically
 	if myquota == 1:
 		quota = '-03-31'
 		Result = getQouta(code,reportStartDate,quota,now.year,site)
@@ -175,10 +182,20 @@ def execute(myquota,site):
 	elif myquota == 4:
 		quota = '-12-31'
 		Result = getQouta(code,reportStartDate,quota,int(now.year) +1,site)
+
+	return [Result]
+
+def execute(myquota,site):
+	key = bytes(ENCRYPTION_KEY, encoding='utf-8') # Key should be generated dynamically
+
+	emr_reports = getEmrHIVReports(site, myquota, datetime.date.today())
+	emastercard_reports = getEMastercardReports(site, myquota)
+	reports = (*emr_reports, *emastercard_reports)
+
+	encrypted_reports = [encrypt(json.dumps(report), key) for report in reports]
 	#print(Result)
 	#print('KEY:',generateEncryptionKey())
-	data_encrypted = encrypt(json.dumps(Result),key)
-	print(data_encrypted)
+	print(f'Encrypted reports: {encrypted_reports}')
 	#print(decrypt(data_encrypted,key))
 
 	#check internet connection to the server in HQ
@@ -186,17 +203,18 @@ def execute(myquota,site):
 	port = str(PORT)
 	retry = 5
 	delay = 10
-	if checkHost(ip, port,retry,delay):
-		print('connection available')
-		print('generating report...')
+	for report in encrypted_reports:
+		if checkHost(ip, port,retry,delay):
+			print('connection available')
+			print('generating report...')
 
-		response = sendData(data_encrypted,ip,port,site)
-		if response:
-			print('data sent successfully')
+			response = sendData(report,ip,port,site)
+			if response:
+				print('data sent successfully')
+			else:
+				print('data sent Failed')
 		else:
-			print('data sent Failed')
-	else:
-		print('connection not available')
+			print('connection not available')
 
 flag = True
 while flag == True:
