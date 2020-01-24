@@ -13,6 +13,7 @@ import json
 import socket
 import time
 
+import emr_api.exceptions as emr_exceptions
 import emr_api.reports as emr_reports
 import settings # enviroment variabless
 
@@ -157,14 +158,23 @@ def checkHost(ip, port,retry,delay):
 
 def getEmrHIVReports(site, quarter, year):
 	'''Returns a list of the primary HIV reports from the EMR.'''
-	parse_report = lambda report: {
-		'sitecode': site['SITECODE'],
-		'sitename': site['SITENAME'],
-		'report_generated_time': datetime.datetime.now().strftime(r'%Y-%m-%d %H:%M'),
-		'reportdata': report.get(settings.EMR_API, quarter, year)
-	}
+	def parse_report(report):
+		try:
+			return {
+				'sitecode': site['SITECODE'],
+				'sitename': site['SITENAME'],
+				'report_generated_time': datetime.datetime.now().strftime(r'%Y-%m-%d %H:%M'),
+				'report_name': report.name,
+				'report_source': 'emr',
+				'reportdata': report.get(settings.EMR_API, quarter, year)
+			}
+		except emr_exceptions.ApiError as e:
+			print(f'Failed to retrieve report: {e}')
+			return None
 
-	return map(parse_report, emr_reports.reports())
+	reports = map(parse_report, emr_reports.reports())
+
+	return filter(lambda report: report is not None, reports)
 
 def getEMastercardReports(site, myquota):
 	now = datetime.datetime.now()
@@ -183,16 +193,16 @@ def getEMastercardReports(site, myquota):
 		quota = '-12-31'
 		Result = getQouta(code,reportStartDate,quota,int(now.year) +1,site)
 
-	return [Result]
+	return [dict(report_source='emastercard', **Result)]
 
 def execute(myquota,site):
 	key = bytes(ENCRYPTION_KEY, encoding='utf-8') # Key should be generated dynamically
 
 	emr_reports = getEmrHIVReports(site, myquota, datetime.date.today())
-	emastercard_reports = getEMastercardReports(site, myquota)
+	emastercard_reports = [] and getEMastercardReports(site, myquota)
 	reports = (*emr_reports, *emastercard_reports)
 
-	encrypted_reports = [encrypt(json.dumps(report), key) for report in reports]
+	encrypted_reports = encrypt(json.dumps(reports), key)
 	#print(Result)
 	#print('KEY:',generateEncryptionKey())
 	print(f'Encrypted reports: {encrypted_reports}')
@@ -203,18 +213,17 @@ def execute(myquota,site):
 	port = str(PORT)
 	retry = 5
 	delay = 10
-	for report in encrypted_reports:
-		if checkHost(ip, port,retry,delay):
-			print('connection available')
-			print('generating report...')
+	if checkHost(ip, port,retry,delay):
+		print('connection available')
+		print('generating report...')
 
-			response = sendData(report,ip,port,site)
-			if response:
-				print('data sent successfully')
-			else:
-				print('data sent Failed')
+		response = sendData(encrypted_reports,ip,port,site)
+		if response:
+			print('data sent successfully')
 		else:
-			print('connection not available')
+			print('data sent Failed')
+	else:
+		print('connection not available')
 
 flag = True
 while flag == True:
@@ -231,7 +240,7 @@ while flag == True:
 			if trigger['response'] == 'Yes':
 				print('about to')
 				if trigger['quota']:
-					myquota = float(trigger['quota'])
+					myquota = int(float(trigger['quota']))	# Unfortunately we may get floats here
 					execute(myquota,site)
 		else:
 			print('No response to the server or Record Not found')
