@@ -5,6 +5,7 @@ import requests
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
+LOGGER.addHandler(logging.StreamHandler())
 
 class ApiClient:
     '''An ApiClient for the EMR API.
@@ -86,7 +87,7 @@ class ApiClient:
         elif response.status_code == 204:
             return None # 204 is no content
         elif response.status_code == 401:
-            LOGGER.error(f'Authentication failed: {response.body}')
+            LOGGER.error(f'Authentication failed: {response.text}')
             raise exceptions.AuthenticationError('EMR API request failed')
         else:
             LOGGER.error(f'EMR API request failed: {response.status_code} - {response.text}')
