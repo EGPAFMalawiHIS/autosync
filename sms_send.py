@@ -54,7 +54,7 @@ def getSite(filename):
 	return site
 
 #Cummulative corhot aggregated report
-def getQouta(code,reportStartDate,quota, year,site):
+def getQouta(code, start_date, end_date, report_name, site):
 	
 	'''
 	PARAMS = [
@@ -70,7 +70,7 @@ def getQouta(code,reportStartDate,quota, year,site):
 	'''
 
 	PARAMS = [
-	{'code':1,'type':None,'reportStartDate':None,'reportEndDate':str(year) + quota }
+	{'code': code,'reportStartDate': start_date,'reportEndDate': end_date }
 	]
 
 	print(PARAMS)
@@ -78,11 +78,15 @@ def getQouta(code,reportStartDate,quota, year,site):
 	data = [] 
 	for param in PARAMS:
 		try:  
+			print(EMASTERCARD_URL)
 			r = requests.get(url = EMASTERCARD_URL, params = param) 
-			print('recieved data', r)
-			data.append({'sitecode':site['SITECODE'],'sitename':site['SITENAME'],'report_generated_time':datetime.datetime.now().strftime("%Y-%m:%d, %H:%M:%S"),'reportdata':r.json()})
+			print('recieved data', r.text)
+			data.append({'sitecode':site['SITECODE'],'sitename':site['SITENAME'],
+						 'report_source': 'emastercard', 'report_name': report_name, 
+						 'report_generated_time': datetime.datetime.now().strftime("%Y-%m:%d, %H:%M:%S"),
+						 'reportdata':r.json()})
 		except requests.exceptions.ConnectionError as e: 
-			print('Timeout')
+			logging.exception(f'Failed to retrieve eMastercard report: {e}')
 
 	print('report generated')
 	return data
@@ -184,37 +188,32 @@ def getEmrHIVReports(site, quarter, year):
 
 	return tuple(filter(lambda report: report is not None, reports))
 
-def getEMastercardReports(site, myquota):
+def getEMastercardReports(site, myquota, year):
 	print('Retrieving Emastercard reports...')
-	now = datetime.datetime.now()
-	code = 1
-	reportStartDate = None
-	if myquota == 1:
-		quota = '-03-31'
-		Result = getQouta(code,reportStartDate,quota,now.year,site)
-	elif myquota == 2:
-		quota = '-06-30'
-		Result = getQouta(code,reportStartDate,quota,now.year,site)
-	elif myquota == 3:
-		quota = '-09-30'
-		Result = getQouta(code,reportStartDate,quota,now.year,site)
-	elif myquota == 4:
-		quota = '-12-31'
-		Result = getQouta(code,reportStartDate,quota,int(now.year) +1,site)
-
-	return [dict(report_source='emastercard', **Result)]
+	report_start_date, report_end_date = emr_reports.get_quarter_dates(myquota, year)
+	cummulative_report_code = 1
+	quarterly_report_code = 2
+	return (
+		getQouta(cummulative_report_code, None, report_end_date, 'Cummulative age disaggregates', site)
+		+ getQouta(quarterly_report_code, report_start_date, report_end_date, 'Quarterly age disaggregates', site)
+	)
 
 def getReports(site, quarter, year):
+	print(f'Retrieving reports for Q{quarter}-{year}...')
 	reporting_api_type = settings.REPORTING_API['type'].lower()
 	if reporting_api_type == 'emr':
 		return getEmrHIVReports(site, quarter, year)
 	elif reporting_api_type == 'emastercard':
-		return getEMastercardReports(site, quarter)
+		return getEMastercardReports(site, quarter, year)
 	else:
-		raise f'Invalid REPORTING_API_TYPE in configuration, {reporting_api_type}'
+		raise ValueError(f'Invalid REPORTING_API_TYPE in configuration, {reporting_api_type}')
 
-def execute(myquota,site):
-	reports = getReports(site, myquota, datetime.date.today().year)
+def execute(site, year, myquota):
+	reports = getReports(site, myquota, year)
+	if not reports:
+		logging.error('Retrieved empty report - data sending failed')
+		return None
+
 	encrypted_reports = encrypt(json.dumps(reports), ENCRYPTION_KEY)
 	#print(Result)
 	#print('KEY:',generateEncryptionKey())
@@ -252,9 +251,13 @@ while flag == True:
 		if len(trigger) > 0:
 			if trigger['response'] == 'Yes':
 				print('about to')
-				if trigger['quota']:
-					myquota = int(float(trigger['quota']))	# Unfortunately we may get floats here
-					execute(myquota,site)
+				quarter = trigger['quota']
+				year = trigger['year']
+
+				if quarter and year:
+					quarter = int(float(trigger['quota']))	# Unfortunately we may get floats here
+					year = int(year)
+					execute(site, year, quarter)
 		else:
 			print('No response to the server or Record Not found')
 
