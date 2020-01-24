@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.fernet import Fernet
 import json
+import logging
 import socket
 import time
 
@@ -21,10 +22,17 @@ import settings # enviroment variabless
 os.environ['TZ'] = 'Africa/Blantyre'
 time.tzset()
 
-URL = os.getenv("URL")
+REPORTING_API_PROTOCOL = settings.REPORTING_API['protocol']
+REPORTING_API_HOST = settings.REPORTING_API['host']
+REPORTING_API_PORT = settings.REPORTING_API['port']
+
+EMASTERCARD_URL = f"{REPORTING_API_PROTOCOL}://{REPORTING_API_HOST}:{REPORTING_API_PORT}/api/v1/reports/age-disaggregates"
 SERVER = os.getenv("SERVER")
 PORT = os.getenv("PORT")
-ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
+ENCRYPTION_KEY = bytes(os.getenv("ENCRYPTION_KEY"), 'utf-8')
+
+LOGGER = logging.getLogger(__name__)
+LOGGER.setLevel(logging.DEBUG)
 
 def getSite(filename):
 	site = {'SITECODE':None,'SITENAME':None,'DISTRICT':None}
@@ -70,7 +78,7 @@ def getQouta(code,reportStartDate,quota, year,site):
 	data = [] 
 	for param in PARAMS:
 		try:  
-			r = requests.get(url = URL, params = param) 
+			r = requests.get(url = EMASTERCARD_URL, params = param) 
 			print('recieved data', r)
 			data.append({'sitecode':site['SITECODE'],'sitename':site['SITENAME'],'report_generated_time':datetime.datetime.now().strftime("%Y-%m:%d, %H:%M:%S"),'reportdata':r.json()})
 		except requests.exceptions.ConnectionError as e: 
@@ -82,19 +90,19 @@ def getQouta(code,reportStartDate,quota, year,site):
 
 def sendData(data,server,port,site):
 	
-	URL = 'http://'+ server + ':' + str(port) + '/sms'
-	response = requests.post(URL, data={'Body':data,'sitename':site['SITENAME'],'sitecode':site['SITECODE'],'district':site['DISTRICT']})
+	EMASTERCARD_URL = 'http://'+ server + ':' + str(port) + '/sms'
+	response = requests.post(EMASTERCARD_URL, data={'Body':data,'sitename':site['SITENAME'],'sitecode':site['SITECODE'],'district':site['DISTRICT']})
 	if response.status_code == 200:
 		return True
 	else:
 		return False
 
 def getTrigger(site,server,port):
-	URL = 'http://'+server+':'+port+'/trigger_per_site'
+	EMASTERCARD_URL = 'http://'+server+':'+port+'/trigger_per_site'
 	PARAMS = {'site':site}
 	data = []
 	try:  
-		r = requests.get(url = URL, params = PARAMS) 
+		r = requests.get(url = EMASTERCARD_URL, params = PARAMS) 
 		if r:
 
 			data = r.json()
@@ -103,7 +111,7 @@ def getTrigger(site,server,port):
 		
 
 	except requests.exceptions.ConnectionError as e: 
-		print(URL+' Timeout')
+		print(EMASTERCARD_URL+' Timeout')
 
 	print('lets check data:',data)
 	return data
@@ -166,7 +174,7 @@ def getEmrHIVReports(site, quarter, year):
 				'report_generated_time': datetime.datetime.now().strftime(r'%Y-%m-%d %H:%M'),
 				'report_name': report.name,
 				'report_source': 'emr',
-				'reportdata': report.get(settings.EMR_API, quarter, year)
+				'reportdata': report.get(settings.REPORTING_API, quarter, year)
 			}
 		except emr_exceptions.ApiError as e:
 			print(f'Failed to retrieve report: {e}')
@@ -174,9 +182,10 @@ def getEmrHIVReports(site, quarter, year):
 
 	reports = map(parse_report, emr_reports.reports())
 
-	return filter(lambda report: report is not None, reports)
+	return tuple(filter(lambda report: report is not None, reports))
 
 def getEMastercardReports(site, myquota):
+	print('Retrieving Emastercard reports...')
 	now = datetime.datetime.now()
 	code = 1
 	reportStartDate = None
@@ -195,14 +204,18 @@ def getEMastercardReports(site, myquota):
 
 	return [dict(report_source='emastercard', **Result)]
 
+def getReports(site, quarter, year):
+	reporting_api_type = settings.REPORTING_API['type'].lower()
+	if reporting_api_type == 'emr':
+		return getEmrHIVReports(site, quarter, year)
+	elif reporting_api_type == 'emastercard':
+		return getEMastercardReports(site, quarter)
+	else:
+		raise f'Invalid REPORTING_API_TYPE in configuration, {reporting_api_type}'
+
 def execute(myquota,site):
-	key = bytes(ENCRYPTION_KEY, encoding='utf-8') # Key should be generated dynamically
-
-	emr_reports = getEmrHIVReports(site, myquota, datetime.date.today())
-	emastercard_reports = [] and getEMastercardReports(site, myquota)
-	reports = (*emr_reports, *emastercard_reports)
-
-	encrypted_reports = encrypt(json.dumps(reports), key)
+	reports = getReports(site, myquota, datetime.date.today().year)
+	encrypted_reports = encrypt(json.dumps(reports), ENCRYPTION_KEY)
 	#print(Result)
 	#print('KEY:',generateEncryptionKey())
 	print(f'Encrypted reports: {encrypted_reports}')
