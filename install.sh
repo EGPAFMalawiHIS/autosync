@@ -35,38 +35,42 @@ else
 	apt-get install python3-venv -y
 fi
 
+INSTALL_DIR=${HOME}/autotransfer
+VPYTHON_DIR=${INSTALL_DIR}/.autoenv
+VPYTHON=${VPYTHON_DIR}/bin/python
+VPIP=${VPYTHON_DIR}/bin/pip
 
-mkdir -p ~/autotransfer
+mkdir -p $INSTALL_DIR
+$VPYTHON -m venv $VPYTHON_DIR
+$VPIP install -r requirements.txt
 
-cd ~/autotransfer
+cp -Rv .env site.txt sms_send.py settings.py emr_api/ $INSTALL_DIR
 
-#python3 -m venv .autoenv
+cat > /etc/systemd/system/autotransfer.service <<EOF
+[Unit]
+Description = EGPAF Auto Data Transfer Service
+After       = network.target
 
-#source .autoenv/bin/activate
+[Service]
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$VPYTHON ${INSTALL_DIR}/sms_send.py &> ${INSTALL_DIR}/send_sms.log
+ExecStop=/bin/kill -INT \$MAINPID
+ExecReload=/bin/kill -TERM \$MAINPID
 
-pip3 install cryptography
-#pip3 install json
-#pip3 install socket
+# In case if it gets stopped, restart it immediately
+Restart     = always
 
-#deactivate
+Type        = simple
 
-cd ~/
 
-mv autotransferb.service /etc/systemd/system/autotransfer.service
-mv site.txt /home/user/autotransfer
-mv sms_send.py /home/user/autotransfer
+[Install]
+# multi-user.target corresponds to run level 3
+# roughtly meaning wanted by system start
+WantedBy    = multi-user.target
+EOF
 
 sudo systemctl start autotransfer
 
 sudo systemctl enable autotransfer
 
 echo Service Succesfully Installed 
-
-
-
-
-
-
-
-
-
