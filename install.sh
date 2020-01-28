@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 echo Installing auto transfer
 
 if command -v python3 &>/dev/null; then
@@ -41,7 +43,7 @@ VPYTHON=${VPYTHON_DIR}/bin/python
 VPIP=${VPYTHON_DIR}/bin/pip
 
 mkdir -p $INSTALL_DIR
-$VPYTHON -m venv $VPYTHON_DIR
+python3 -m venv $VPYTHON_DIR
 $VPIP install -r requirements.txt
 
 cp -Rv .env site.txt sms_send.py settings.py emr_api/ $INSTALL_DIR
