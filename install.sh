@@ -15,8 +15,8 @@ echo python3-pip is not installed
 apt-get install python3-pip -y
 
 INSTALL_DIR=${HOME}/autotransfer
-VPYTHON=/usr/local/bin/python3
-VPIP=/usr/local/bin/pip3
+VPYTHON=/usr/bin/python3
+VPIP=/usr/bin/pip3
 
 mkdir -p $INSTALL_DIR
 #python3 -m venv $VPYTHON_DIR
