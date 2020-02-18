@@ -1,72 +1,54 @@
 #!/bin/bash
 
+set -x
+
 echo Installing auto transfer
+echo Python 3 is not installed
+apt-get update  # To get the latest package lists
+apt-get install python3 -y
+echo Python3-dev is not installed
 
-if command -v python3 &>/dev/null; then
-    echo Python 3 is installed
-else
-    echo Python 3 is not installed
-    apt-get update  # To get the latest package lists
-	apt-get install python3 -y
-fi
+apt-get install python3-dev -y
+
+echo python3-pip is not installed
+
+apt-get install python3-pip -y
+
+INSTALL_DIR=${HOME}/autotransfer
+VPYTHON=/usr/local/bin/python3
+VPIP=/usr/local/bin/pip3
+
+mkdir -p $INSTALL_DIR
+#python3 -m venv $VPYTHON_DIR
+#$VPIP install -r requirements.txt
+
+cp -Rv .env site.txt sms_send.py settings.py emr_api/ $INSTALL_DIR
+
+cat > /etc/systemd/system/autotransfer.service <<EOF
+[Unit]
+Description = EGPAF Auto Data Transfer Service
+After       = network.target
+
+[Service]
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$VPYTHON ${INSTALL_DIR}/sms_send.py &> ${INSTALL_DIR}/send_sms.log
+ExecStop=/bin/kill -INT \$MAINPID
+ExecReload=/bin/kill -TERM \$MAINPID
+
+# In case if it gets stopped, restart it immediately
+Restart     = always
+
+Type        = simple
 
 
-if command -v python3-dev &>/dev/null; then
-    echo Python3-dev is installed
-else
-    echo Python3-dev is not installed
-    
-	apt-get install python3-dev -y
-fi
-
-if command -v python3-pip &>/dev/null; then
-    echo python3-pip is installed
-else
-    echo python3-pip is not installed
-    
-	apt-get install python3-pip -y
-fi
-
-if command -v python3-venv &>/dev/null; then
-    echo python3-venv is installed
-else
-    echo python3-venv is not installed
-    
-	apt-get install python3-venv -y
-fi
-
-
-mkdir -p ~/autotransfer
-
-cd ~/autotransfer
-
-#python3 -m venv .autoenv
-
-#source .autoenv/bin/activate
-
-pip3 install cryptography
-#pip3 install json
-#pip3 install socket
-
-#deactivate
-
-cd ~/
-
-mv autotransferb.service /etc/systemd/system/autotransfer.service
-mv site.txt /home/user/autotransfer
-mv sms_send.py /home/user/autotransfer
+[Install]
+# multi-user.target corresponds to run level 3
+# roughtly meaning wanted by system start
+WantedBy    = multi-user.target
+EOF
 
 sudo systemctl start autotransfer
 
 sudo systemctl enable autotransfer
 
 echo Service Succesfully Installed 
-
-
-
-
-
-
-
-
-
