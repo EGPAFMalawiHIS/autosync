@@ -2,8 +2,11 @@ from .api_client import ApiClient
 
 import datetime
 import logging
+import time
 
 LOGGER = logging.getLogger(__name__)
+LOGGER.setLevel(logging.DEBUG)
+LOGGER.addHandler(logging.StreamHandler())
 
 HIV_PROGRAM_ID = 1  # Program ID for HIV in EMR-API
 
@@ -25,17 +28,26 @@ def get_quarter_dates(quarter, year=None):
        
 
 class CohortReport:
+    REPORT_WAIT_TIME = 60 # seconds
+
     name = 'Cohort'
 
     @staticmethod
     def get(config, quarter, year):
         '''Retrieve quarterly cohort report for a given year.'''
-        LOGGER.debug(f'Retrieving cohort report for Q{quarter}-{year}')
         start_date, end_date = get_quarter_dates(quarter, year)
         uri = f'programs/{HIV_PROGRAM_ID}/reports/cohort'
-        return ApiClient(config).get(uri, name=f'Q{quarter}-{year}',
-                                          start_date=start_date,
-                                          end_date=end_date)
+        while True:
+            LOGGER.debug(f'Retrieving cohort report for Q{quarter}-{year}')
+            report = ApiClient(config).get(uri, name=f'Q{quarter}-{year}',
+                                                start_date=start_date,
+                                                end_date=end_date)
+            if report is None:
+                LOGGER.debug(f'Report not available, retrying in {CohortReport.REPORT_WAIT_TIME} seconds...')
+                time.sleep(CohortReport.REPORT_WAIT_TIME)
+                continue
+
+            return report
 
 
 class BaseDisaggregatedReport:
